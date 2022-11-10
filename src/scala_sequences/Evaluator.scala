@@ -54,8 +54,32 @@ object Evaluator {
                 case Running(next)    => Running(Fuse(next, Repeated(seq, repeats - 1)))
               }
             }
-          case Or(seq1, seq2)      => ???
-          case Implies(seq1, seq2) => ???
+          case Or(seq1, seq2)     => 
+            val seq1Step = step(value, Running(seq1))
+            val seq2Step = step(value, Running(seq2))
+            seq1Step match {
+              case TerminatedFailed =>
+                seq2Step match {
+                  case TerminatedFailed => TerminatedFailed
+                  case TerminatedDone   => TerminatedDone
+                  case r @ Running(_)   => r
+                }
+              case TerminatedDone => TerminatedDone
+              case r: Running[T]  => r
+            }
+          case Implies(seq1, seq2) => 
+            val seq1Step = step(value, Running(seq1))
+            seq1Step match {
+              case TerminatedFailed => TerminatedFailed
+              case TerminatedDone   =>
+                val seq2Step = step(value, Running(seq2))
+                seq2Step match {
+                  case TerminatedFailed => TerminatedFailed
+                  case TerminatedDone   => TerminatedDone
+                  case r: Running[T]    => r
+                }
+              case r: Running[T]    => Running(Implies(r.next, seq2))
+            }
         }
       case TerminatedDone   => TerminatedDone
       case TerminatedFailed => TerminatedFailed

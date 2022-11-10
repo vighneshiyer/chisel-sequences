@@ -57,4 +57,62 @@ class SequenceCoverSpec extends AnyFreeSpec {
       )
     )
   }
+
+  "Cover 5 (Or sequence)" in {
+    val twoTrue = Concat(isTrue, isTrue)
+    val twoFalse = Concat(isFalse, isFalse)
+    val nextUnchanged = Or(twoTrue, twoFalse)
+    val trace = Seq(1, 0, 1, 0, 0, 1, 0, 1, 1, 0).map(_ == 1)
+    val result = Evaluator.cover(nextUnchanged, trace)
+    assert(
+      result == CoverResult(
+        completed = Seq((3, 4), (7, 8)),
+        pending = Seq(9)
+      )
+    )
+  }
+
+  "Cover 6 (A Implies B sequence)" in {
+    val twoImpliesThree = Implies(Fuse(isTwo, delay), isThree)
+    val trace1 = Seq(1, 2, 3, 4, 3, 2, 4, 3) // with none pending
+    val result1 = Evaluator.cover(twoImpliesThree, trace1)
+    assert(
+      result1 == CoverResult(
+        completed = Seq((1, 2)),
+        pending = Seq()
+      )
+    )
+
+    val trace2 = Seq(1, 2, 2, 3, 2, 3, 2) // with pending result
+    val result2 = Evaluator.cover(twoImpliesThree, trace2)
+    assert(
+      result2 == CoverResult(
+        completed = Seq((2, 3), (4, 5)),
+        pending = Seq(6)
+      )
+    )
+  }
+
+  "Cover 7 (combined or and implies)" in {
+    // val twoTrue = Concat(isTrue, isTrue)
+    // val twoFalse = Concat(isFalse, isFalse)
+    // val nextUnchanged = Or(twoTrue, twoFalse)
+    // val twoImpliesUnchange = Implies(Fuse(isTwo, delay), nextUnchanged)
+    // val trace = Seq(1, 2, )
+
+    val isOne = AtmProp[Int](i => i == 1)
+    val isZero = AtmProp[Int](i => i == 0)
+    val twoOnes = Concat(isOne, isOne)
+    val twoZeros = Concat(isZero, isZero)
+    val double = Or(twoOnes, twoZeros)
+    val twoImpliesDouble = Implies(Fuse(isTwo, delay), double)
+    val trace = Seq(1, 2, 1, 1, 0, 2, 0, 1, 2, 0, 0, 3, 1)
+    val result = Evaluator.cover(twoImpliesDouble, trace)
+    assert(
+      result == CoverResult(
+        completed = Seq((1, 3), (8, 10)),
+        pending = Seq()
+      )
+    )
+  }
 }
