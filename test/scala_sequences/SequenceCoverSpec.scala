@@ -2,14 +2,9 @@ package scala_sequences
 
 import org.scalatest.freespec.AnyFreeSpec
 import scala_sequences.Evaluator.CoverResult
+import TestSeqs._
 
 class SequenceCoverSpec extends AnyFreeSpec {
-  val isTrue = AtmProp[Boolean](i => i)
-  val isFalse = AtmProp[Boolean](i => !i)
-  val isTwo = AtmProp[Int](i => i == 2)
-  val isThree = AtmProp[Int](i => i == 3)
-  val delay = Delay(1)
-
   "cover should capture start and stop points for a sequence" in {
     val trueThanFalse = Concat(isTrue, isFalse) // isTrue ##1 isFalse
     val trace = Seq(1, 0, 0, 1, 0, 0, 1).map(_ == 1)
@@ -46,7 +41,7 @@ class SequenceCoverSpec extends AnyFreeSpec {
   }
 
   "cover 3 (nested concat with Int)" in {
-    val twoWaitThanThree: ScalaSeq[Int] = Concat(isTwo, isThree) // isTwo ##1 isThree
+    val twoWaitThanThree: ScalaSeq[Int, Any] = Concat(isNumber(2), isNumber(3)) // isTwo ##1 isThree
     val trace = Seq(1, 2, 3, 2, 4, 3, 2, 2, 3, 2)
     val result = Evaluator.cover(twoWaitThanThree, trace)
     assert(
@@ -83,7 +78,7 @@ class SequenceCoverSpec extends AnyFreeSpec {
     )
     
     // test case for seq2 fails when seq1 still running
-    val twoThenThreeOrThree = Or(Concat(isTwo, isThree), isThree)
+    val twoThenThreeOrThree = Or(Concat(isNumber(2), isNumber(3)), isNumber(3))
     val trace2 = Seq(1, 2, 2, 3, 2, 4, 3, 5)
     val result2 = Evaluator.cover(twoThenThreeOrThree, trace2)
     assert(
@@ -95,7 +90,7 @@ class SequenceCoverSpec extends AnyFreeSpec {
   }
 
   "Cover 6 (A Implies B sequence)" in {
-    val twoImpliesThree = Implies(Fuse(isTwo, delay), isThree)
+    val twoImpliesThree = Implies(Fuse(isNumber(2), delay), isNumber(3))
     val trace1 = Seq(1, 2, 3, 4, 3, 2, 4, 3) // with none pending
     val result1 = Evaluator.cover(twoImpliesThree, trace1)
     assert(
@@ -122,12 +117,10 @@ class SequenceCoverSpec extends AnyFreeSpec {
     // val twoImpliesUnchange = Implies(Fuse(isTwo, delay), nextUnchanged)
     // val trace = Seq(1, 2, )
 
-    val isOne = AtmProp[Int](i => i == 1)
-    val isZero = AtmProp[Int](i => i == 0)
-    val twoOnes = Concat(isOne, isOne)
-    val twoZeros = Concat(isZero, isZero)
+    val twoOnes = Concat(isNumber(1), isNumber(1))
+    val twoZeros = Concat(isNumber(0), isNumber(0))
     val double = Or(twoOnes, twoZeros)
-    val twoImpliesDouble = Implies(Fuse(isTwo, delay), double)
+    val twoImpliesDouble = Implies(Fuse(isNumber(2), delay), double)
     val trace = Seq(1, 2, 1, 1, 0, 2, 0, 1, 2, 0, 0, 3, 1)
     val result = Evaluator.cover(twoImpliesDouble, trace)
     assert(
