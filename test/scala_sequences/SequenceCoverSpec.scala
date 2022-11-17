@@ -22,6 +22,17 @@ class SequenceCoverSpec extends AnyFreeSpec {
     )
   }
 
+  "cover 1 simple check True" in {
+    val trace = Seq(1, 0, 0, 1, 0, 0, 1).map(_ == 1)
+    val result = Evaluator.cover(isTrue, trace)
+    assert(
+      result == CoverResult(
+        completed = Seq((0, 0), (3, 3), (6, 6)),
+        pending = Seq()
+      )
+    )
+  }
+
   "cover 2 (nested concat)" in {
     val twoTrueOneFalse = Concat(isTrue, Concat(isTrue, isFalse)) // isTrue ##1 isTrue ##1 isFalse
     val trace = Seq(1, 1, 1, 0, 1, 1, 0, 1, 1).map(_ == 1)
@@ -68,6 +79,17 @@ class SequenceCoverSpec extends AnyFreeSpec {
       result == CoverResult(
         completed = Seq((3, 4), (7, 8)),
         pending = Seq(9)
+      )
+    )
+    
+    // test case for seq2 fails when seq1 still running
+    val twoThenThreeOrThree = Or(Concat(isTwo, isThree), isThree)
+    val trace2 = Seq(1, 2, 2, 3, 2, 4, 3, 5)
+    val result2 = Evaluator.cover(twoThenThreeOrThree, trace2)
+    assert(
+      result2 == CoverResult(
+        completed = Seq((2, 3), (3, 3), (6, 6)),
+        pending = Seq()
       )
     )
   }

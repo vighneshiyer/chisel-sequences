@@ -4,6 +4,8 @@ object Evaluator {
   type Time = Int
   case class CoverResult(completed: Seq[(Time, Time)], pending: Seq[Time])
   case class CoverState[T](seqsInFlight: Set[(Time, SequenceStatus[T])], time: Time, completed: Seq[(Time, Time)])
+  case class AssertResult(failed: Seq[(Time, Time)], pending: Seq[Time])
+  case class AssertState[T](seqsInFlight: Set[(Time, SequenceStatus[T])], time: Time, failed: Seq[(Time, Time)])
 
   sealed trait SequenceStatus[+T]
   case object TerminatedFailed extends SequenceStatus[Nothing]
@@ -65,7 +67,12 @@ object Evaluator {
                   case r @ Running(_)   => r
                 }
               case TerminatedDone => TerminatedDone
-              case r: Running[T]  => r
+              case r: Running[T]  => 
+                // consider case when seq2 finish before seq1 here, check Seq2Step as well
+                seq2Step match {
+                  case TerminatedDone   => TerminatedDone
+                  case _  => r // all other case, continue running r for seq1
+                }
             }
           case Implies(seq1, seq2) => 
             val seq1Step = step(value, Running(seq1))
@@ -97,6 +104,48 @@ object Evaluator {
       case Implies(seq1, seq2)    => start(value, seq1)
     }
   }
+
+  // assert result gives tuples of time stamps when sequence starts and failed
+  def assert[T](sequence: ScalaSeq[T], trace: Seq[T]): AssertResult = {
+    val finalState = trace.foldLeft(AssertState[T](Set.empty, 0, Seq.empty)) { (state, value) =>
+      val seqsInFlight: Set[(Time, SequenceStatus[T])] = if (start(value, sequence)) {
+        state.seqsInFlight.incl((state.time, Running(sequence)))
+      } else if (sequence.isInstanceOf[AtmProp[T]]) {
+        // if seq is atomic prop and does not start, the seq fails
+        state.seqsInFlight.incl((state.time, TerminatedFailed)) 
+      } else {
+        state.seqsInFlight
+      }
+      // step the sequence
+      val seqsAfterStep = seqsInFlight.map{ case (startTime, seq) => (startTime, step(value, seq))}
+
+      // keep the sequence that fails, contrary to cover state. Filter out success states
+      val seqsFails = seqsAfterStep.filter { case (startTime, seqStatus) =>
+        seqStatus match {
+          case TerminatedFailed => true
+          case TerminatedDone   => false
+          case Running(_)       => true
+        }
+      }
+      val seqsFailedCompleted = seqsFails.filter { case (startTime, seqStatus) =>
+        seqStatus match {
+          case TerminatedFailed => true
+          case TerminatedDone   => false
+          case Running(_)       => false
+        }
+      }.map{ case (startTime, seqStatus) => (startTime, state.time)}
+
+      state.copy(
+        seqsInFlight = seqsAfterStep.filter { case (startTime, seqStatus) =>
+          seqStatus match { case r: Running[T] => true; case _ => false }
+        },
+        time = state.time + 1,
+        failed = state.failed ++ seqsFailedCompleted
+      )
+    }
+    AssertResult(finalState.failed, finalState.seqsInFlight.map{ case (startTime, _) => startTime }.toSeq)
+  }
+
 
   def cover[T](sequence: ScalaSeq[T], trace: Seq[T]): CoverResult = {
     val finalState = trace.foldLeft(CoverState[T](Set.empty, 0, Seq.empty)) { (state, value) =>
