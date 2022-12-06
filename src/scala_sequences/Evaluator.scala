@@ -1,5 +1,7 @@
 package scala_sequences
 
+import sequences.backend.HOAParser.HOA
+
 object Evaluator {
   type Time = Int
   case class CoverResult(completed: Seq[(Time, Time)], pending: Seq[Time])
@@ -213,8 +215,9 @@ object Evaluator {
         if (isAssert) {
           seqStatus match {
             case TerminatedFailed => true
-            case TerminatedDone(_)   => false
-            case Running(_, _)    => true
+            case TerminatedDone(_) => false
+            case Running(_, _) => true
+          }
         } else {
           seqStatus match {
             case TerminatedFailed =>
@@ -230,8 +233,9 @@ object Evaluator {
         if (isAssert) {
           seqStatus match {
             case TerminatedFailed => true
-            case TerminatedDone(_)   => false
-            case Running(_, _)    => false
+            case TerminatedDone(_) => false
+            case Running(_, _) => false
+          }
         } else {
           seqStatus match {
             case TerminatedFailed => ??? // should never happen
@@ -253,6 +257,15 @@ object Evaluator {
     CheckResult(finalState.result, finalState.seqsInFlight.map { case (startTime, _) => startTime }.toSeq)
   }
 
+  def constructFormula[T, S](seqn: ScalaSeq[T, S]): (String, Map[AtmProp[T, S], String]) = {
+    // seqn[Boolean, Any]: isTrue delay isFalse
+    // a -> isTrue
+    // b -> isFalse
+    // psl: G(a X b)
+    // map: {a: isTrue, b: isFalse}
+    // hoa
+    ???
+  }
 
   def assertHOA[T](trace: Seq[T], hoa: HOA): AssertResult = {
     val finalState = trace.foldLeft(Seq(AssertState[T, S](Set.empty, 0, Seq.empty), hoa.initialState)) { case (Seq(state, currState), value) =>
