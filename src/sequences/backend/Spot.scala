@@ -23,8 +23,8 @@ object Spot extends Backend {
   def boolExprtoPSL(e: BooleanExpr): String = e match {
     case SymbolExpr(name) => name
     case NotExpr(e)       => s"!(${boolExprtoPSL(e)})"
-    case AndExpr(a, b)    => ???
-    case OrExpr(a, b)     => ???
+    case AndExpr(a, b)    => s"(${boolExprtoPSL(a)}) && (${boolExprtoPSL(b)})"
+    case OrExpr(a, b)     => s"(${boolExprtoPSL(a)}) || (${boolExprtoPSL(b)})"
   }
 
   def sequenceToPSL(s: Sequence): String = {
@@ -33,12 +33,12 @@ object Spot extends Backend {
         s"(${boolExprtoPSL(predicate)})"
       case SeqConcat(s1, s2) =>
         s"(${sequenceToPSL(s1)} & X(${sequenceToPSL(s2)}))"
-      case SeqOr(s1, s2)          => ???
-      case SeqIntersect(s1, s2)   => ???
+      case SeqOr(s1, s2)          => s"(${sequenceToPSL(s1)} | ${sequenceToPSL(s2)})"
+      case SeqIntersect(s1, s2)   => s"(${sequenceToPSL(s1)} within ${sequenceToPSL(s2)})"
       case SeqNot(s1)             => s"!${sequenceToPSL(s1)}"
-      case SeqImplies(s1, p1)     => ???
-      case SeqImpliesNext(s1, p1) => ???
-      case SeqFuse(s1, s2)        => ???
+      case SeqImplies(s1, p1)     => s"(${sequenceToPSL(s1)} |-> ${sequenceToPSL(p1)})"
+      case SeqImpliesNext(s1, p1) => s"(${sequenceToPSL(s1)} |=> ${sequenceToPSL(p1)})"
+      case SeqFuse(s1, s2)        => s"(${sequenceToPSL(s1)} & (${sequenceToPSL(s2)}))"
     }
   }
 

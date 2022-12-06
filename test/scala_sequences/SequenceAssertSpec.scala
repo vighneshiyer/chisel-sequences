@@ -9,26 +9,21 @@ class SequenceAssertSpec extends AnyFreeSpec {
       val trueThanFalse = Concat(isTrue, isFalse) // G(isTrue ##1 isFalse)
       val trace = Seq(1, 0).map(_ == 1)
       val result = Evaluator.assert(trueThanFalse, trace)
-
-      // TODO: Andy will fix
-      /*
       assert(
         result == AssertResult(
-          failed = Seq(),
+          failed = Seq((1, 1)),
           pending = Seq()
         )
       )
 
       val trace2 = Seq(1, 0, 1).map(_ == 1)
-      val result2 = Evaluator.assert(trueThanFalse, trace)
-
+      val result2 = Evaluator.assert(trueThanFalse, trace2)
       assert(
         result2 == AssertResult(
           failed = Seq((1, 1)),
           pending = Seq(2)
         )
       )
-       */
     }
 
     "assert 1 simple assert all true" in {
@@ -48,35 +43,35 @@ class SequenceAssertSpec extends AnyFreeSpec {
       val result = Evaluator.assert(twoTrueOneFalse, trace)
       assert(
         result == AssertResult(
-          failed = Seq((0, 2), (2, 3), (5, 6)), // TODO: fix failure cases
+          failed = Seq((0, 2), (2, 3), (3, 3), (5, 6), (6, 6)),
           pending = Seq(7, 8)
         )
       )
     }
 
-//   "cover 3 (nested concat with Int)" in {
-//     val twoWaitThanThree: ScalaSeq[Int] = Concat(isTwo, isThree) // isTwo ##1 isThree
-//     val trace = Seq(1, 2, 3, 2, 4, 3, 2, 2, 3, 2)
-//     val result = Evaluator.cover(twoWaitThanThree, trace)
-//     assert(
-//       result == AssertResult(
-//         failed = Seq((1, 2), (7, 8)),
-//         pending = Seq(9)
-//       )
-//     )
-//   }
+  "assert 3 (nested concat with Int)" in {
+    val twoWaitThenThree = Concat(isNumber(2), isNumber(3)) // isTwo ##1 isThree
+    val trace = Seq(2, 3, 2, 4, 2, 3, 2)
+    val result = Evaluator.assert(twoWaitThenThree, trace)
+    assert(
+      result == AssertResult(
+        failed = Seq((1, 1), (2, 3), (3, 3), (5, 5)),
+        pending = Seq(6)
+      )
+    )
+  }
 
-//   "cover 4 (repeated sequence)" in {
-//     val repeatTrueThrice = Fuse(Repeated(Fuse(isTrue, Delay(1)), 2), isTrue) // isTrue[*3]
-//     val trace = Seq(1, 1, 1, 0, 1, 1, 1, 1, 0, 1).map(_ == 1)
-//     val result = Evaluator.cover(repeatTrueThrice, trace)
-//     assert(
-//       result == AssertResult(
-//         failed = Seq((0, 2), (4, 6), (5, 7)),
-//         pending = Seq(9)
-//       )
-//     )
-//   }
+  "assert 4 (repeated sequence)" in {
+    val repeatTrueThrice = Fuse(Repeated(Fuse(isTrue, Delay(1)), 2), isTrue) // isTrue[*3]
+    val trace = Seq(1, 1, 1, 0, 1, 1, 1, 1, 0, 1).map(_ == 1)
+    val result = Evaluator.assert(repeatTrueThrice, trace)
+    assert(
+      result == AssertResult(
+        failed = Seq((1, 3), (2, 3), (3, 3), (6, 8), (7, 8), (8, 8)),
+        pending = Seq(9)
+      )
+    )
+  }
 
 //   "Cover 5 (Or sequence)" in {
 //     val twoTrue = Concat(isTrue, isTrue)

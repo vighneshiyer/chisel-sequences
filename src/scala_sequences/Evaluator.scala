@@ -7,6 +7,9 @@ object Evaluator {
   case class AssertResult(failed: Seq[(Time, Time)], pending: Seq[Time])
   case class AssertState[T, S](seqsInFlight: Set[(Time, SequenceStatus[T, S])], time: Time, failed: Seq[(Time, Time)])
 
+  case class CheckResult(result: Seq[(Time, Time)], pending: Seq[Time])
+  case class CheckState[T, S](seqsInFlight: Set[(Time, SequenceStatus[T, S])], time: Time, result: Seq[(Time, Time)])
+
   sealed trait SequenceStatus[+T, +S]
   case object TerminatedFailed extends SequenceStatus[Nothing, Nothing]
   case class TerminatedDone[S](state: S) extends SequenceStatus[Nothing, S]
@@ -113,11 +116,8 @@ object Evaluator {
     val finalState = trace.foldLeft(AssertState[T, S](Set.empty, 0, Seq.empty)) { (state, value) =>
       val seqsInFlight: Set[(Time, SequenceStatus[T, S])] = if (start(value, sequence, initState)) {
         state.seqsInFlight.incl((state.time, Running(sequence, initState)))
-      } else if (sequence.isInstanceOf[AtmProp[T, S]]) {
-        // if seq is atomic prop and does not start, the seq fails
-        state.seqsInFlight.incl((state.time, TerminatedFailed)) 
       } else {
-        state.seqsInFlight
+        state.seqsInFlight.incl((state.time, TerminatedFailed))
       }
       // step the sequence
       val seqsAfterStep = seqsInFlight.map{ case (startTime, seq) => (startTime, step(value, seq))}
@@ -191,5 +191,100 @@ object Evaluator {
       )
     }
     CoverResult(finalState.completed, finalState.seqsInFlight.map { case (startTime, _) => startTime }.toSeq)
+  }
+
+  // consolidated function with option to choose between cover or assert
+  def check[T, S](sequence: ScalaSeq[T, S], trace: Seq[T], initState: S = new Object(), isAssert: Boolean): CheckResult = {
+      val finalState = trace.foldLeft(CheckState[T, S](Set.empty, 0, Seq.empty)) { (state, value) =>
+      // If a new sequence instance launches now, then add it to the sequences in flight
+      val seqsInFlight: Set[(Time, SequenceStatus[T, S])] = if (start(value, sequence, initState)) {
+        state.seqsInFlight.incl((state.time, Running(sequence, initState))) // record when this sequence started
+      } else if (isAssert) {
+        state.seqsInFlight.incl((state.time, TerminatedFailed))
+      } else {
+        state.seqsInFlight
+      }
+
+      // Step each sequence instance given this value
+      val seqsAfterStep = seqsInFlight.map { case (startTime, seq) => (startTime, step(value, seq)) }
+
+      // If any sequence instances have failed, remove then from the in-flight set
+      val seqsTarget = seqsAfterStep.filter { case (startTime, seqStatus) =>
+        if (isAssert) {
+          seqStatus match {
+            case TerminatedFailed => true
+            case TerminatedDone(_)   => false
+            case Running(_, _)    => true
+        } else {
+          seqStatus match {
+            case TerminatedFailed =>
+              false // TODO: we probably want to track failures in "assert" mode, but this is "cover" mode
+            case TerminatedDone(_) => true
+            case Running(_, _)  => true
+          }
+        }
+      }
+
+      // If any sequence instances have completed, remove them from the in-flight set, and turn them into (startTime, endTime) pairs
+      val seqsCompleted = seqsTarget.filter { case (startTime, seqStatus) =>
+        if (isAssert) {
+          seqStatus match {
+            case TerminatedFailed => true
+            case TerminatedDone(_)   => false
+            case Running(_, _)    => false
+        } else {
+          seqStatus match {
+            case TerminatedFailed => ??? // should never happen
+            case TerminatedDone(_)   => true
+            case Running(_, _)    => false
+          }
+        }
+      }.map { case (startTime, seqStatus) => (startTime, state.time) }
+
+      state.copy(
+        // only keep the sequences still in the 'Running' state
+        seqsInFlight = seqsAfterStep.filter { case (startTime, seqStatus) =>
+          seqStatus match { case r: Running[T, S] => true; case _ => false }
+        },
+        time = state.time + 1,
+        result = state.result ++ seqsCompleted
+      )
+    }
+    CheckResult(finalState.result, finalState.seqsInFlight.map { case (startTime, _) => startTime }.toSeq)
+  }
+
+
+  def assertHOA[T](trace: Seq[T], hoa: HOA): AssertResult = {
+    val finalState = trace.foldLeft(Seq(AssertState[T, S](Set.empty, 0, Seq.empty), hoa.initialState)) { case (Seq(state, currState), value) =>
+      val nextState = transition(value, hoa.aps, hoa.states(currState).transitions)
+      val seqfailed = nextstate match {
+        case Some(i) => ???
+        case None    => (state.time, state.time) // when the automata does not have next state / cannot proceed further, record fail time
+      }
+      Seq(state.copy(
+        seqsInFlight = seqsInFlight // no need to keep track seqsInFlight?
+        time = state.time + 1,
+        failed = state.failed ++ seqfailed
+      ), 
+      nextState match {
+        case Some(i) => i
+        case None    => hoa.initialState
+      })
+    }
+    AssertResult(finalState.failed, finalState.seqsInFlight.map{ case (startTime, _) => startTime }.toSeq))
+  }
+
+  // given a trace value, return the state id that it will transition into
+  def transition(value: T, aps: Map[AP, String], transitions: Map[Condition, Int]): Option[Int] = {
+    val nextState = transitions.map { case (cond, next) =>
+      val result = cond(value) // TODO apply the transition condition to the current trace value
+      (result, next)
+    }.toSeq.filter{ case (bool, next) => bool}
+    
+    if (nextState.isEmpty()) {
+      None
+    } else {
+      nextState.map{ case (bool, next) => next}
+    }
   }
 }
