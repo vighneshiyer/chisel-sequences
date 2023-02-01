@@ -36,8 +36,8 @@ object Spot extends Backend {
       case SeqOr(s1, s2)          => s"(${sequenceToPSL(s1)} | ${sequenceToPSL(s2)})"
       case SeqIntersect(s1, s2)   => s"(${sequenceToPSL(s1)} within ${sequenceToPSL(s2)})"
       case SeqNot(s1)             => s"!${sequenceToPSL(s1)}"
-      case SeqImplies(s1, p1)     => s"(${sequenceToPSL(s1)} |-> ${sequenceToPSL(p1)})"
-      case SeqImpliesNext(s1, p1) => s"(${sequenceToPSL(s1)} |=> ${sequenceToPSL(p1)})"
+      case SeqImplies(s1, p1)     => s"(${sequenceToPSL(s1)} |-> ???"
+      case SeqImpliesNext(s1, p1) => s"(${sequenceToPSL(s1)} |=> ???"
       case SeqFuse(s1, s2)        => s"(${sequenceToPSL(s1)} & (${sequenceToPSL(s2)}))"
     }
   }

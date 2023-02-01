@@ -257,16 +257,55 @@ object Evaluator {
     CheckResult(finalState.result, finalState.seqsInFlight.map { case (startTime, _) => startTime }.toSeq)
   }
 
-  def constructFormula[T, S](seqn: ScalaSeq[T, S]): (String, Map[AtmProp[T, S], String]) = {
+  def toFormula[T, S](seqn: ScalaSeq[T, S], map: Map[String, AtmProp[T, S]]): (String, Map[String, AtmProp[T, S]]) = {
+      seqn match {
+        case seq: AtmProp[T, S] =>  if (map.isEmpty) { 
+          ("a", Map("a" -> seq))
+        } else if (map.values.exists(_ == seq)) {
+          (map.find(_._2 == seq).map(_._1).getOrElse(""), map)
+        } else { 
+          val maxString = map.keySet.max
+          // generate new key instance for each new AtmProp
+          val newKey: String = (maxString.charAt(0) + 1).toChar.toString()
+          val newMap = map + (newKey -> seq)
+          (newKey, newMap)
+        }
+        case Fuse(s1, s2)    => {
+          val (psl1, newMap1) = toFormula(s1, map)
+          val (psl2, newMap2) = toFormula(s2, newMap1)
+          (s"${psl1} ${psl2}", newMap2)
+        }
+        case Delay(n)        => (s"& X", map)
+        case Repeated(s1, n) => (s"{${toFormula(s1, map)._1}[*${n}]}", map)
+        case Or(s1, s2)      => {
+          val (psl1, newMap1) = toFormula(s1, map)
+          val (psl2, newMap2) = toFormula(s2, newMap1)
+          (s"{${psl1}} | {${psl2}}", newMap2)
+        }
+        case Implies(s1, s2) => {
+          val (psl1, newMap1) = toFormula(s1, map)
+          val (psl2, newMap2) = toFormula(s2, newMap1)
+          (s"{${psl1}} |-> {${psl2}}", newMap2)
+        }
+      }
+    }
+
+  def constructFormula[T, S](seqn: ScalaSeq[T, S]): (String, Map[String, AtmProp[T, S]]) = {
     // seqn[Boolean, Any]: isTrue delay isFalse
     // a -> isTrue
     // b -> isFalse
     // psl: G(a X b)
     // map: {a: isTrue, b: isFalse}
     // hoa
-    ???
+    val (formula, map) = toFormula(seqn, Map.empty[String, AtmProp[T, S]])
+    (s"G(${formula})", map) // Only providing G for the PSL string?
   }
 
+
+
+
+  
+/*
   def assertHOA[T](trace: Seq[T], hoa: HOA): AssertResult = {
     val finalState = trace.foldLeft(Seq(AssertState[T, S](Set.empty, 0, Seq.empty), hoa.initialState)) { case (Seq(state, currState), value) =>
       val nextState = transition(value, hoa.aps, hoa.states(currState).transitions)
@@ -284,20 +323,22 @@ object Evaluator {
         case None    => hoa.initialState
       })
     }
-    AssertResult(finalState.failed, finalState.seqsInFlight.map{ case (startTime, _) => startTime }.toSeq))
+    AssertResult(finalState.failed, finalState.seqsInFlight.map{ case (startTime, _) => startTime }.toSeq)
   }
 
   // given a trace value, return the state id that it will transition into
-  def transition(value: T, aps: Map[AP, String], transitions: Map[Condition, Int]): Option[Int] = {
+  def transition(value: T, aps: Map[String, AtmProp[T, S]], transitions: Map[Condition, Int]): Option[Int] = {
     val nextState = transitions.map { case (cond, next) =>
       val result = cond(value) // TODO apply the transition condition to the current trace value
       (result, next)
     }.toSeq.filter{ case (bool, next) => bool}
-    
+
     if (nextState.isEmpty()) {
       None
     } else {
       nextState.map{ case (bool, next) => next}
     }
   }
+}
+*/
 }

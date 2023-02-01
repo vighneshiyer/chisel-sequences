@@ -49,4 +49,57 @@ class SpotBackendTests extends AnyFreeSpec with ChiselScalatestTester {
       c.io.fail.expect(1.B)
     }
   }
+
+  "Spot PSL serializer check for multiple concat" in {
+    val (a, b, c) = (SymbolExpr("a"), SymbolExpr("b"), SymbolExpr("c"))
+    val expr = SeqConcat(SeqConcat(SeqPred(a), SeqPred(b)), SeqPred(c))
+    assert(Spot.sequenceToPSL(expr) == "(((a) & X((b))) & X((c)))")
+  }
+
+  "Spot PSL serializer check for SeqOr" in {
+    val (a, b, c) = (SymbolExpr("a"), SymbolExpr("b"), SymbolExpr("c"))
+    val expr = SeqOr(SeqConcat(SeqPred(a), SeqPred(b)), SeqPred(c))
+    assert(Spot.sequenceToPSL(expr) == "(((a) & X((b))) | (c))")
+  }
+
+  "Spot PSL serializer check for SeqFuse" in {
+    val (a, b, c) = (SymbolExpr("a"), SymbolExpr("b"), SymbolExpr("c"))
+    val expr = SeqFuse(SeqFuse(SeqPred(a), SeqPred(b)), SeqPred(c))
+    assert(Spot.sequenceToPSL(expr) == "(((a) & ((b))) & ((c)))")
+  }
+
+  "Spot backend should emit monitor circuit G(a & X (b | !c))" in {
+    val a = SeqPred(SymbolExpr("a"))
+    val b = SeqPred(SymbolExpr("b"))
+    val c = SeqPred(SymbolExpr("c"))
+    val notC = SeqNot(c)
+
+    class Container extends Module {
+      val mod = Spot.compile(PropertyInfo(PropSeq(SeqConcat(a, SeqOr(b, notC))), Seq("a", "b", "c")))
+      val io = IO(new PropertyAutomatonIO(Seq("a", "b", "c")))
+      io.predicates <> mod.io.predicates
+      io.fail := mod.io.fail
+    }
+
+    test(new Container()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
+      c.io.predicates.elements("a").poke(1.B)
+      c.io.predicates.elements("b").poke(1.B)
+      c.io.predicates.elements("c").poke(1.B)
+      c.io.fail.expect(0.B)
+      c.clock.step()
+      c.io.predicates.elements("b").poke(1.B)
+      c.io.fail.expect(0.B)
+    }
+
+    test(new Container()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
+      c.io.predicates.elements("a").poke(1.B)
+      c.io.predicates.elements("b").poke(1.B)
+      c.io.predicates.elements("c").poke(1.B)
+      c.io.fail.expect(0.B)
+      c.clock.step()
+      c.io.predicates.elements("b").poke(0.B)
+      c.io.predicates.elements("c").poke(1.B)
+      c.io.fail.expect(1.B)
+    }
+  }
 }
