@@ -1,13 +1,20 @@
 package scala_sequences
 
 import sequences.backend.HOAParser.HOA
+import sequences.backend.HOAParser.Condition
+import sequences.backend.HOAParser
 
 object Evaluator {
   type Time = Int
+  type StateId = Int
   case class CoverResult(completed: Seq[(Time, Time)], pending: Seq[Time])
   case class CoverState[T, S](seqsInFlight: Set[(Time, SequenceStatus[T, S])], time: Time, completed: Seq[(Time, Time)])
   case class AssertResult(failed: Seq[(Time, Time)], pending: Seq[Time])
   case class AssertState[T, S](seqsInFlight: Set[(Time, SequenceStatus[T, S])], time: Time, failed: Seq[(Time, Time)])
+
+  // only provide whether assertion failed and timestamp of failure starting point
+  case class AssertHOAResult(isSuccess: Boolean, failed: Seq[Time])
+  case class AssertHOAState(currStateId: StateId, time: Time, failed: Seq[Time])
 
   case class CheckResult(result: Seq[(Time, Time)], pending: Seq[Time])
   case class CheckState[T, S](seqsInFlight: Set[(Time, SequenceStatus[T, S])], time: Time, result: Seq[(Time, Time)])
@@ -267,25 +274,28 @@ object Evaluator {
           val maxString = map.keySet.max
           // generate new key instance for each new AtmProp
           val newKey: String = (maxString.charAt(0) + 1).toChar.toString()
-          val newMap = map + (newKey -> seq)
+          val newMap         = map + (newKey -> seq)
           (newKey, newMap)
         }
         case Fuse(s1, s2)    => {
           val (psl1, newMap1) = toFormula(s1, map)
           val (psl2, newMap2) = toFormula(s2, newMap1)
-          (s"${psl1} ${psl2}", newMap2)
+          s1 match {
+            case Delay(n) => (s"${psl1} (${psl2})", newMap2)
+            case _        => (s"${psl1} & ${psl2}", newMap2)
+          }
         }
-        case Delay(n)        => (s"& X", map)
+        case Delay(n)        => (s"X", map)
         case Repeated(s1, n) => (s"{${toFormula(s1, map)._1}[*${n}]}", map)
         case Or(s1, s2)      => {
           val (psl1, newMap1) = toFormula(s1, map)
           val (psl2, newMap2) = toFormula(s2, newMap1)
-          (s"{${psl1}} | {${psl2}}", newMap2)
+          (s"(${psl1}} | {${psl2})", newMap2)
         }
         case Implies(s1, s2) => {
           val (psl1, newMap1) = toFormula(s1, map)
           val (psl2, newMap2) = toFormula(s2, newMap1)
-          (s"{${psl1}} |-> {${psl2}}", newMap2)
+          (s"(${psl1}) |-> (${psl2})", newMap2)
         }
       }
     }
@@ -298,15 +308,51 @@ object Evaluator {
     // map: {a: isTrue, b: isFalse}
     // hoa
     val (formula, map) = toFormula(seqn, Map.empty[String, AtmProp[T, S]])
-    (s"G(${formula})", map) // Only providing G for the PSL string?
+    (s"G(${formula})", map)
+  }
+
+  // if failed at a certain time, return to state 0 on the next trace
+  def assertHOA[T](trace: Seq[T], hoa: HOA, map: Map[String, AtmProp[T, S]]): AssertHOAResult = {
+    val finalState = trace.foldLeft(AssertHOAState(hoa.initialState, 0, Seq.empty)) { case (state, value) =>
+      val transitions: Map[Condition, Int] = hoa.states(state.currStateId).transitions
+      val nextStateMap: Map[Condition, Int] = transitions.filter { case (cond, next) =>
+        evalCondition()
+        
+        
+      }
+      val nextState: Int = if (nextStateMap.isEmpty) {
+        hoa.initialState
+      } else {
+        // obtain the next state ID; nextStateMap should only contain one valid entry at this point
+        nextStateMap.values.head
+      }
+
+      state.copy(
+        currStateId = nextState, 
+        time = state.time + 1, 
+        failed = if (nextStateMap.isEmpty) { state.failed ++ Seq(state.time)} else { state.failed}
+      )
+    }
+    AssertHOAResult(finalState.failed.equals(Seq.empty), finalState.failed)
+  }
+
+  // // convert from HOA integer representation to Atomic Props
+  // def IdtoSeq(ap: AP, hoa: HOA, map: Map[String, AtmProp[T, S]]): AtmProp[T, S] = {
+  //   map(hoa.aps(ap))
+  // }
+
+  def evalCondition(condition: Condition, value: T, hoa: HOA, map: Map[String, AtmProp[T, S]]): Boolean = {
+    condition match {
+      case p: HOAParser.Predicate => map(hoa.aps(p.ap)).pred(value)
+      case p: HOAParser.Not    => !evalCondition(p.p, value, hoa, map)
+      case p: HOAParser.And    => ??? //p.conds.foldLeft(true) {case true evalCondition(condition, value, hoa, map)}
+      case p: HOAParser.Or     => ???
+    }
   }
 
 
-
-
-  
-/*
-  def assertHOA[T](trace: Seq[T], hoa: HOA): AssertResult = {
+  /*
+  def assertHOA[T, S](trace: Seq[T], hoa: HOA): AssertResult = {
     val finalState = trace.foldLeft(Seq(AssertState[T, S](Set.empty, 0, Seq.empty), hoa.initialState)) { case (Seq(state, currState), value) =>
       val nextState = transition(value, hoa.aps, hoa.states(currState).transitions)
       val seqfailed = nextstate match {
@@ -339,6 +385,5 @@ object Evaluator {
       nextState.map{ case (bool, next) => next}
     }
   }
-}
-*/
+  */
 }

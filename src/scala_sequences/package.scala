@@ -13,7 +13,7 @@ package object scala_sequences {
   case class Implies[T, S](seq1: ScalaSeq[T, S], seq2: ScalaSeq[T, S]) extends ScalaSeq[T, S]
 
   def Concat[T, S](seq1: ScalaSeq[T, S], seq2: ScalaSeq[T, S]): ScalaSeq[T, S] = {
-    Fuse(Fuse(seq1, Delay(1)), seq2)
+    Fuse(seq1, Fuse(Delay(1), seq2))
   }
 
   sealed trait Property[+T, S] {}
