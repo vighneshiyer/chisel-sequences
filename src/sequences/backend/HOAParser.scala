@@ -59,12 +59,21 @@ object HOAParser {
   def conditionParser[_: P]: P[Condition] = P((trueLit | or | and | atom) ~ End)
 
   def parseTransition(s: String): (Condition, Int) = {
-    // s is of the form: "[0&1] 1"
-    val split = s.split(' ')
-    assert(split.length == 2)
+    // // s is of the form: "[0&1] 1"
+    // val split = s.split(' ')
+    // assert(split.length == 2)
 
-    val condition = split(0).drop(1).dropRight(1) // first element is the condition, remove the brackets
-    val nextState = split(1).toInt // second element is the target state
+    // val condition = split(0).drop(1).dropRight(1) // first element is the condition, remove the brackets
+    // val nextState = split(1).toInt // second element is the target state
+
+    // val parsedCond = parse(condition, conditionParser(_))
+    // (parsedCond.get.value, nextState)
+
+    // version with Or statement splitting fix
+    // s is of the form: "[0&1] 1", or generally "[condition] nextState"
+    val parser = "\\[(.*)\\]\\s([0-9]+)".r
+    val parser(condition, next) = s
+    val nextState = next.toInt
 
     val parsedCond = parse(condition, conditionParser(_))
     (parsedCond.get.value, nextState)

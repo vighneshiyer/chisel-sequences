@@ -77,8 +77,8 @@ class SpotBackendTests extends AnyFreeSpec with ChiselScalatestTester {
     assert(Spot.sequenceToPSL(expr) == "((a) & X(((b) | !(c))))")
 
     class Container extends Module {
-      val mod = Spot.compile(PropertyInfo(PropSeq(SeqOr(a, b)), Seq("a", "b")))
-      val io = IO(new PropertyAutomatonIO(Seq("a", "b")))
+      val mod = Spot.compile(PropertyInfo(PropSeq(SeqConcat(a, SeqOr(b, notC))), Seq("a", "b", "c")))
+      val io = IO(new PropertyAutomatonIO(Seq("a", "b", "c")))
       io.predicates <> mod.io.predicates
       io.fail := mod.io.fail
     }
@@ -86,26 +86,23 @@ class SpotBackendTests extends AnyFreeSpec with ChiselScalatestTester {
     test(new Container()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
       c.io.predicates.elements("a").poke(1.B)
       c.io.predicates.elements("b").poke(1.B)
+      c.io.predicates.elements("c").poke(1.B)
       c.clock.step()
       c.io.fail.expect(0.B)
-      c.io.predicates.elements("b").poke(1.B)
+      c.io.predicates.elements("b").poke(0.B)
       c.clock.step()
-      c.clock.step()
-      //c.io.predicates.elements("c").poke(0.B)
-      // c.clock.step()
-      // c.io.predicates.elements("b").poke(1.B)
-      // c.io.fail.expect(0.B)
+      c.io.fail.expect(1.B)
     }
 
-    // test(new Container()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
-    //   c.io.predicates.elements("a").poke(1.B)
-    //   c.io.predicates.elements("b").poke(1.B)
-    //   c.io.predicates.elements("c").poke(1.B)
-    //   c.io.fail.expect(0.B)
-    //   c.clock.step()
-    //   c.io.predicates.elements("b").poke(0.B)
-    //   c.io.predicates.elements("c").poke(1.B)
-    //   c.io.fail.expect(1.B)
-    // }
+    test(new Container()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>
+      c.io.predicates.elements("a").poke(1.B)
+      c.io.predicates.elements("b").poke(1.B)
+      c.io.predicates.elements("c").poke(1.B)
+      c.io.fail.expect(0.B)
+      c.clock.step()
+      c.io.predicates.elements("b").poke(0.B)
+      c.io.predicates.elements("c").poke(1.B)
+      c.io.fail.expect(1.B)
+    }
   }
 }

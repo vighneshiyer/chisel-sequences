@@ -3,6 +3,7 @@ package scala_sequences
 import sequences.backend.HOAParser.HOA
 import sequences.backend.HOAParser.Condition
 import sequences.backend.HOAParser
+import sequences.backend.HOAParser.True
 
 object Evaluator {
   type Time = Int
@@ -264,6 +265,7 @@ object Evaluator {
     CheckResult(finalState.result, finalState.seqsInFlight.map { case (startTime, _) => startTime }.toSeq)
   }
 
+  // helper function for constructFormula
   def toFormula[T, S](seqn: ScalaSeq[T, S], map: Map[String, AtmProp[T, S]]): (String, Map[String, AtmProp[T, S]]) = {
       seqn match {
         case seq: AtmProp[T, S] =>  if (map.isEmpty) { 
@@ -290,7 +292,7 @@ object Evaluator {
         case Or(s1, s2)      => {
           val (psl1, newMap1) = toFormula(s1, map)
           val (psl2, newMap2) = toFormula(s2, newMap1)
-          (s"(${psl1}} | {${psl2})", newMap2)
+          (s"(${psl1}) | (${psl2})", newMap2)
         }
         case Implies(s1, s2) => {
           val (psl1, newMap1) = toFormula(s1, map)
@@ -300,7 +302,7 @@ object Evaluator {
       }
     }
 
-  def constructFormula[T, S](seqn: ScalaSeq[T, S]): (String, Map[String, AtmProp[T, S]]) = {
+  def constructFormula[T, S](seqn: ScalaSeq[T, S], isGlobal: Boolean): (String, Map[String, AtmProp[T, S]]) = {
     // seqn[Boolean, Any]: isTrue delay isFalse
     // a -> isTrue
     // b -> isFalse
@@ -308,19 +310,23 @@ object Evaluator {
     // map: {a: isTrue, b: isFalse}
     // hoa
     val (formula, map) = toFormula(seqn, Map.empty[String, AtmProp[T, S]])
-    (s"G(${formula})", map)
+    if (isGlobal) {
+      (s"G(${formula})", map)
+    } else {
+      (s"(${formula})", map)
+    }
   }
 
+  // assert trace sequences with HOA model
+  // map: mapping of hoa symbol to ScalaSeq AtmProp
   // if failed at a certain time, return to state 0 on the next trace
-  def assertHOA[T](trace: Seq[T], hoa: HOA, map: Map[String, AtmProp[T, S]]): AssertHOAResult = {
+  def assertHOA[T, S](trace: Seq[T], hoa: HOA, map: Map[String, AtmProp[T, Any]]): AssertHOAResult = {
     val finalState = trace.foldLeft(AssertHOAState(hoa.initialState, 0, Seq.empty)) { case (state, value) =>
-      val transitions: Map[Condition, Int] = hoa.states(state.currStateId).transitions
+      val transitions: Map[Condition, Int]  = hoa.states(state.currStateId).transitions
       val nextStateMap: Map[Condition, Int] = transitions.filter { case (cond, next) =>
-        evalCondition()
-        
-        
+        evalCondition(cond, value, null, hoa, map) // null for local state (not implemented)
       }
-      val nextState: Int = if (nextStateMap.isEmpty) {
+      val nextState: Int = if (nextStateMap.isEmpty || nextStateMap.keys.head.equals(True)) {
         hoa.initialState
       } else {
         // obtain the next state ID; nextStateMap should only contain one valid entry at this point
@@ -336,17 +342,14 @@ object Evaluator {
     AssertHOAResult(finalState.failed.equals(Seq.empty), finalState.failed)
   }
 
-  // // convert from HOA integer representation to Atomic Props
-  // def IdtoSeq(ap: AP, hoa: HOA, map: Map[String, AtmProp[T, S]]): AtmProp[T, S] = {
-  //   map(hoa.aps(ap))
-  // }
-
-  def evalCondition(condition: Condition, value: T, hoa: HOA, map: Map[String, AtmProp[T, S]]): Boolean = {
+  // TODO: state: S is reserved for local state. Currently is a placeholder.
+  def evalCondition[T, S](condition: Condition, value: T, state: S, hoa: HOA, map: Map[String, AtmProp[T, S]]): Boolean = {
     condition match {
-      case p: HOAParser.Predicate => map(hoa.aps(p.ap)).pred(value)
-      case p: HOAParser.Not    => !evalCondition(p.p, value, hoa, map)
-      case p: HOAParser.And    => ??? //p.conds.foldLeft(true) {case true evalCondition(condition, value, hoa, map)}
-      case p: HOAParser.Or     => ???
+      case HOAParser.True              => true
+      case HOAParser.Predicate(ap)     => map(hoa.aps(ap)).pred(value, state)
+      case HOAParser.Not(pred)         => !evalCondition(pred, value, state, hoa, map)
+      case HOAParser.And(conds @ _*)   => conds.map(evalCondition(_, value, state, hoa, map)).reduce(_ && _)
+      case HOAParser.Or(conds @ _*)    => conds.map(evalCondition(_, value, state, hoa, map)).reduce(_ || _)
     }
   }
 
