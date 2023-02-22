@@ -104,7 +104,7 @@ object HOAParser {
       } else {
         hoa
       }
-    }
+   }
 
     // Group every state and all its transitions together so they can be parsed as one block
     val body = groupStates(lines.slice(headerLimit + 1, endLimit))

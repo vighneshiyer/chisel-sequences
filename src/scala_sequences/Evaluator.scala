@@ -271,6 +271,7 @@ object Evaluator {
         case seq: AtmProp[T, S] =>  if (map.isEmpty) { 
           ("a", Map("a" -> seq))
         } else if (map.values.exists(_ == seq)) {
+          // obtain psl symbol for existing AtmProp
           (map.find(_._2 == seq).map(_._1).getOrElse(""), map)
         } else { 
           val maxString = map.keySet.max
@@ -302,7 +303,7 @@ object Evaluator {
       }
     }
 
-  def constructFormula[T, S](seqn: ScalaSeq[T, S], isGlobal: Boolean): (String, Map[String, AtmProp[T, S]]) = {
+  def constructFormula[T, S](seqn: ScalaSeq[T, S]): (String, Map[String, AtmProp[T, S]]) = {
     // seqn[Boolean, Any]: isTrue delay isFalse
     // a -> isTrue
     // b -> isFalse
@@ -310,11 +311,7 @@ object Evaluator {
     // map: {a: isTrue, b: isFalse}
     // hoa
     val (formula, map) = toFormula(seqn, Map.empty[String, AtmProp[T, S]])
-    if (isGlobal) {
       (s"G(${formula})", map)
-    } else {
-      (s"(${formula})", map)
-    }
   }
 
   // assert trace sequences with HOA model
@@ -326,7 +323,7 @@ object Evaluator {
       val nextStateMap: Map[Condition, Int] = transitions.filter { case (cond, next) =>
         evalCondition(cond, value, null, hoa, map) // null for local state (not implemented)
       }
-      val nextState: Int = if (nextStateMap.isEmpty || nextStateMap.keys.head.equals(True)) {
+      val nextState: Int = if (nextStateMap.isEmpty) {
         hoa.initialState
       } else {
         // obtain the next state ID; nextStateMap should only contain one valid entry at this point
@@ -353,40 +350,4 @@ object Evaluator {
     }
   }
 
-
-  /*
-  def assertHOA[T, S](trace: Seq[T], hoa: HOA): AssertResult = {
-    val finalState = trace.foldLeft(Seq(AssertState[T, S](Set.empty, 0, Seq.empty), hoa.initialState)) { case (Seq(state, currState), value) =>
-      val nextState = transition(value, hoa.aps, hoa.states(currState).transitions)
-      val seqfailed = nextstate match {
-        case Some(i) => ???
-        case None    => (state.time, state.time) // when the automata does not have next state / cannot proceed further, record fail time
-      }
-      Seq(state.copy(
-        seqsInFlight = seqsInFlight // no need to keep track seqsInFlight?
-        time = state.time + 1,
-        failed = state.failed ++ seqfailed
-      ), 
-      nextState match {
-        case Some(i) => i
-        case None    => hoa.initialState
-      })
-    }
-    AssertResult(finalState.failed, finalState.seqsInFlight.map{ case (startTime, _) => startTime }.toSeq)
-  }
-
-  // given a trace value, return the state id that it will transition into
-  def transition(value: T, aps: Map[String, AtmProp[T, S]], transitions: Map[Condition, Int]): Option[Int] = {
-    val nextState = transitions.map { case (cond, next) =>
-      val result = cond(value) // TODO apply the transition condition to the current trace value
-      (result, next)
-    }.toSeq.filter{ case (bool, next) => bool}
-
-    if (nextState.isEmpty()) {
-      None
-    } else {
-      nextState.map{ case (bool, next) => next}
-    }
-  }
-  */
 }

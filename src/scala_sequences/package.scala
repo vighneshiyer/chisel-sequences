@@ -16,6 +16,14 @@ package object scala_sequences {
     Fuse(seq1, Fuse(Delay(1), seq2))
   }
 
+  // data integrity
+  def FifoIntegrity[T, S](delay: Int): ScalaSeq[T, S] = {
+    Implies(A, Concat(Delay(delay), A))
+  }
+  def FifoOrder[T, S](): ScalaSeq[T, S] = {
+    Implies(Concat(A, B), Concat(A, B))
+  }
+
   sealed trait Property[+T, S] {}
 
   case class PropSeq[T, S](seq: ScalaSeq[T, S], stateGen: () => S) extends Property[T, S]
