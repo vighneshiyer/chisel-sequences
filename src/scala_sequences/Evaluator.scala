@@ -303,7 +303,7 @@ object Evaluator {
       }
     }
 
-  def constructFormula[T, S](seqn: ScalaSeq[T, S]): (String, Map[String, AtmProp[T, S]]) = {
+  def constructFormula[T, S](seqn: ScalaSeq[T, S], prefix: String): (String, Map[String, AtmProp[T, S]]) = {
     // seqn[Boolean, Any]: isTrue delay isFalse
     // a -> isTrue
     // b -> isFalse
@@ -311,7 +311,7 @@ object Evaluator {
     // map: {a: isTrue, b: isFalse}
     // hoa
     val (formula, map) = toFormula(seqn, Map.empty[String, AtmProp[T, S]])
-      (s"G(${formula})", map)
+    (s"${prefix}(${formula})", map)
   }
 
   // assert trace sequences with HOA model
