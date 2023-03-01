@@ -23,6 +23,7 @@ sealed trait Sequence {
 }
 
 case class SeqExpr(predicate: chisel3.Bool) extends Sequence
+case class SeqStateExpr[S <: Data](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence

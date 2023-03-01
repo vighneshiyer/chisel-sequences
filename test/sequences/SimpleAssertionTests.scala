@@ -62,6 +62,23 @@ trait SimpleAssertionTestsContainer { this: AnyFreeSpec with ChiselScalatestTest
       }
       assert(e.getMessage.contains("assertion"))
     }
+    
+    "simple local state sequence" in {
+      test(new PropertyAlwaysAssertTester(backend) {
+        override def prop = PropSeq (
+          SeqImpliesNext(SeqStateExpr((_) => a, (s: Bool) => a),
+            SeqStateExpr((s: Bool) => b === s, (s) => s)
+          )
+          //PropSeq(SeqConcat(SeqExpr(a), SeqExpr(b)))
+      }) { dut =>
+        dut.a.poke(false)
+        dut.clock.step(1) // property hasn't fired yet
+        dut.a.poke(true) // property should start this cycle
+        dut.clock.step(1)
+        dut.b.poke(true) // make assertion pass
+        dut.clock.step()
+      }
+    }
   }
 }
 
