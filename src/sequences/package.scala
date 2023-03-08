@@ -4,6 +4,7 @@
 
 package sequences
 
+import chisel3._
 import scala.language.implicitConversions
 
 package object sequences {
@@ -34,4 +35,7 @@ case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
 
 sealed trait Property {}
 
-case class PropSeq(s: Sequence) extends Property
+case class PropSeq[S <: Data](s: Sequence) extends Property
+
+sealed trait LocalState {}
+case class StateBinding[T <: Data](state: T) extends LocalState

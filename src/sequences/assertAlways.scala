@@ -1,11 +1,12 @@
 package sequences
 
 import chisel3.assert
+import chisel3.Data
 import backend.{Backend, SequenceFsms}
 
 object assertAlways {
-  def apply(prop: Property, desc: String = "", backend: Backend = SequenceFsms): Unit = {
-    val fail = toAutomaton(prop, backend)
+  def apply[S <: Data](prop: Property, desc: String = "", backend: Backend = SequenceFsms, initialState: S): Unit = {
+    val fail = toAutomaton(prop, backend, initialState)
     assert(!fail, desc)
   }
 }

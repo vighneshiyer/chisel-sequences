@@ -4,13 +4,14 @@
 
 package sequences
 
+import chisel3.Data
 import chisel3.Bool
 
 import scala.collection.mutable
 
 object toAutomaton {
-  def apply(prop: Property, backendImpl: backend.Backend): Bool = {
-    val (info, pred) = ToIRConverter.toIR(prop)
+  def apply[S <: Data](prop: Property, backendImpl: backend.Backend, initialState: S): Bool = {
+    val (info, pred) = ToIRConverter.toIR(prop, initialState)
     val mod = backendImpl.compile(info)
     // connect predicates as inputs
     mod.io.predicates.elements.foreach { case (name, input) => input := pred(name) }
@@ -20,32 +21,33 @@ object toAutomaton {
 }
 
 private object ToIRConverter {
-  def toIR(prop: Property): (backend.PropertyInfo, Map[String, Bool]) = new ToIRConverter().toIR(prop)
+  def toIR[S <: Data](prop: Property, initialState: S): (backend.PropertyInfo, Map[String, Bool]) = new ToIRConverter().toIR(prop, initialState)
 }
 
 private class ToIRConverter private () {
   private val pred = mutable.LinkedHashMap[Bool, String]()
 
-  def toIR(prop: Property): (backend.PropertyInfo, Map[String, Bool]) = {
+  def toIR[S <: Data](prop: Property, initialState: S): (backend.PropertyInfo, Map[String, Bool]) = {
     pred.clear()
-    val propertyIR = convert(prop)
+    val propertyIR = convert(prop, initialState)
     val nameToPred = pred.toSeq.map { case (a, b) => (b, a) }
     (backend.PropertyInfo(propertyIR, nameToPred.map(_._1)), nameToPred.toMap)
   }
 
-  private def convert(prop: Property): backend.Property = prop match {
-    case PropSeq(s) => backend.PropSeq(convert(s))
+  private def convert[S <: Data](prop: Property, initialState: S): backend.Property = prop match {
+    case PropSeq(s) => backend.PropSeq(convert(s, initialState))
   }
 
-  private def convert(seq: Sequence): backend.Sequence = seq match {
+  private def convert[S <: Data](seq: Sequence, state: S): backend.Sequence = seq match {
     case SeqExpr(predicate)     => backend.SeqPred(convert(predicate))
-    case SeqOr(s1, s2)          => backend.SeqOr(convert(s1), convert(s2))
-    case SeqConcat(s1, s2)      => backend.SeqConcat(convert(s1), convert(s2))
-    case SeqIntersect(s1, s2)   => backend.SeqIntersect(convert(s1), convert(s2))
-    case SeqNot(s1)             => backend.SeqNot(convert(s1))
-    case SeqImplies(s1, p1)     => backend.SeqImplies(convert(s1), convert(p1))
-    case SeqImpliesNext(s1, p1) => backend.SeqImpliesNext(convert(s1), convert(p1))
-    case SeqFuse(s1, s2)        => backend.SeqFuse(convert(s1), convert(s2))
+    case SeqStateExpr(predicate, update) => backend.SeqPred(convert(predicate(state)))
+    case SeqOr(s1, s2)          => backend.SeqOr(convert(s1, state), convert(s2, state))
+    case SeqConcat(s1, s2)      => backend.SeqConcat(convert(s1, state), convert(s2, state))
+    case SeqIntersect(s1, s2)   => backend.SeqIntersect(convert(s1, state), convert(s2, state))
+    case SeqNot(s1)             => backend.SeqNot(convert(s1, state))
+    case SeqImplies(s1, p1)     => backend.SeqImplies(convert(s1, state), convert(p1, state))
+    case SeqImpliesNext(s1, p1) => backend.SeqImpliesNext(convert(s1, state), convert(p1, state))
+    case SeqFuse(s1, s2)        => backend.SeqFuse(convert(s1, state), convert(s2, state))
   }
 
   private def convert(e: chisel3.Bool): backend.BooleanExpr = {
