@@ -24,7 +24,7 @@ sealed trait Sequence {
 }
 
 case class SeqExpr(predicate: chisel3.Bool) extends Sequence
-case class SeqStateExpr[S <: Data](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence
+case class SeqStateExpr[S <: Bits](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
@@ -35,7 +35,7 @@ case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
 
 sealed trait Property {}
 
-case class PropSeq[S <: Data](s: Sequence) extends Property
+case class PropSeq[S <: Bits](s: Sequence) extends Property
 
 sealed trait LocalState {}
 case class StateBinding[T <: Data](state: T) extends LocalState

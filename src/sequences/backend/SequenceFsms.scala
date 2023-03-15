@@ -22,13 +22,14 @@ object SequenceFsms extends Backend {
 
   private def compile(pred: Map[String, Bool], p: Property): PropertyFsmIO = {
     p match {
-      case PropSeq(s) => PropSeqModule(comp(pred, s))
+      case PropSeq(s, initialState) => PropSeqModule(comp(pred, s), initialState)
     }
   }
 
   private def comp(pred: Map[String, Bool], s: Sequence): SequenceIO = {
     s match {
-      case SeqPred(predicate) => SeqExprModule(comp(pred, predicate))
+      case SeqPred(predicate) => SeqExprModule(comp(pred, predicate), (a: Bits) => a)
+      case SeqStatePred(predicate, update) => SeqExprModule(comp(pred, predicate), update)
       case SeqConcat(s1, s2)  => SeqConcatModule(comp(pred, s1), comp(pred, s2))
     }
   }
@@ -43,7 +44,7 @@ object SequenceFsms extends Backend {
   /** calculates an upper bound for the property runtime in cycles */
   private def runtime(p: Property): Int = {
     p match {
-      case PropSeq(s) => runtime(s)
+      case PropSeq(s, initialState) => runtime(s)
     }
   }
 
@@ -78,6 +79,12 @@ class SequenceIO extends Bundle {
 
   /** current result (only valid if advance is true) */
   val status = Output(SeqRes())
+
+  /** input for property's current local state */
+  val localState = Input(Bits())
+
+  /** output for updating property's local state */
+  val write_localState = Output(Bits())
 }
 
 object PropRes extends ChiselEnum {
@@ -91,21 +98,29 @@ class PropertyFsmIO extends Bundle {
 
   /** only valid if advance is true */
   val status = Output(PropRes())
+
+  val localState = Output(Bits())
+
+  val write_localState = Input(Bits())
 }
 
 /** converts a boolean signal to the sequence I/O */
-class SeqExprModule extends Module {
+class SeqExprModule[S <: Data](update: (Bits) => Bits) extends Module {
   val io = IO(new SequenceIO)
   val predicate = IO(Input(Bool()))
   // holds iff the predicate is true
   io.status := Mux(predicate, SeqRes.SeqHoldStrong, SeqRes.SeqFail)
   // no FSM state, so never running
   io.running := false.B
+  when (predicate) {
+      val curr_state = io.localState
+      io.write_localState := update(curr_state)
+    }
 }
 
 object SeqExprModule {
-  def apply(predicate: Bool): SequenceIO = {
-    val mod = Module(new SeqExprModule).suggestName("seq_expr")
+  def apply[S <: Data](predicate: Bool, update: (Bits) => Bits): SequenceIO = {
+    val mod = Module(new SeqExprModule(update)).suggestName("seq_expr")
     mod.predicate := predicate
     mod.io
   }
@@ -162,11 +177,15 @@ object SeqConcatModule {
 }
 
 /** converts a sequence I/O into a property I/O */
-class PropSeqModule extends Module {
+class PropSeqModule(initialState: Bits) extends Module {
   val seq = IO(Flipped(new SequenceIO))
   val io = IO(new PropertyFsmIO)
   // advance is just connected
   seq.advance := io.advance
+
+  val localState = RegInit(initialState)
+  seq.localState := localState
+  seq.write_localState := localState
 
   when(seq.status.isOneOf(SeqRes.SeqHold, SeqRes.SeqHoldStrong)) {
     io.status := PropRes.PropTrue
@@ -181,8 +200,8 @@ class PropSeqModule extends Module {
 }
 
 object PropSeqModule {
-  def apply(s: SequenceIO): PropertyFsmIO = {
-    val mod = Module(new PropSeqModule).suggestName("prop_seq")
+  def apply(s: SequenceIO, initialState: Bits): PropertyFsmIO = {
+    val mod = Module(new PropSeqModule(initialState)).suggestName("prop_seq")
     mod.seq <> s
     mod.io
   }

@@ -39,6 +39,7 @@ case class OrExpr(a: BooleanExpr, b: BooleanExpr) extends BooleanExpr
 sealed trait Sequence {}
 
 case class SeqPred(predicate: BooleanExpr) extends Sequence
+case class SeqStatePred[S <: Bits](predicate: BooleanExpr, update: (S) => S) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
@@ -49,12 +50,12 @@ case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
 
 sealed trait Property {}
 
-case class PropSeq(s: Sequence) extends Property
+case class PropSeq[S <: Bits](s: Sequence, initialState: S) extends Property
 
 object serialize {
   def apply(p: Property): String = {
     p match {
-      case PropSeq(s) => apply(s)
+      case PropSeq(s, initialState) => apply(s)
     }
   }
 
