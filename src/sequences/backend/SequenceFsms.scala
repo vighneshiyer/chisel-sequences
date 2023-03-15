@@ -118,6 +118,8 @@ class SeqExprModule[S <: Data](update: (Bits) => Bits) extends Module {
     }
 }
 
+// def seqExprModule[S](s: SequenceIO[S], pred: Bool, update: (S, Bool) => S): (status, running, writeLocalstate)
+
 object SeqExprModule {
   def apply[S <: Data](predicate: Bool, update: (Bits) => Bits): SequenceIO = {
     val mod = Module(new SeqExprModule(update)).suggestName("seq_expr")

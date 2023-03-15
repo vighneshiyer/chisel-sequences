@@ -13,8 +13,8 @@ package object sequences {
   implicit def sequenceToProperty(s:   Sequence):     Property = PropSeq(s)
 }
 
-sealed trait Sequence {
-  def ###(delay: Int = 1)(other: Sequence): SeqConcat = {
+sealed trait Sequence[+S <: Data] {
+  def ###(delay: Int = 1)(other: Sequence[S]): SeqConcat = {
     require(delay >= 0, "negative delay is not supported")
     require(delay == 1, "TODO")
     SeqConcat(this, other)
@@ -23,19 +23,20 @@ sealed trait Sequence {
   def |=>(p: Property): SeqImpliesNext = SeqImpliesNext(this, p)
 }
 
-case class SeqExpr(predicate: chisel3.Bool) extends Sequence
-case class SeqStateExpr[S <: Bits](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence
-case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
+case class SeqExpr(predicate: chisel3.Bool) extends Sequence[Bool]
+case class SeqStateExpr[S <: Data](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence[S]
+case class SeqOr[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqConcat[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqNot(s1: Sequence) extends Sequence
 case class SeqImplies(s1: Sequence, p1: Property) extends Sequence
 case class SeqImpliesNext(s1: Sequence, p1: Property) extends Sequence
 case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
 
-sealed trait Property {}
+sealed trait Property[S <: Data] {}
 
-case class PropSeq[S <: Bits](s: Sequence) extends Property
+case class PropSeq[S <: Data](s: Sequence[S]) extends Property[S]
 
-sealed trait LocalState {}
-case class StateBinding[T <: Data](state: T) extends LocalState
+// 1. type-parameter free API - we'll try this next
+// sealed trait LocalState {}
+// case class StateBinding[T <: Data](state: T) extends LocalState
