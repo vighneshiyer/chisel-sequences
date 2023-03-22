@@ -4,41 +4,42 @@
 
 package sequences
 
-import chisel3.Bits
+import chisel3.Data
 import chisel3.Bool
 
 import scala.collection.mutable
 
 object toAutomaton {
-  def apply[S <: Bits](prop: Property, backendImpl: backend.Backend, initialState: S): Bool = {
+  def apply[S <: Data](prop: Property[S], backendImpl: backend.Backend, initialState: S): Bool = {
     val (info, pred) = ToIRConverter.toIR(prop, initialState)
-    val mod = backendImpl.compile(info)
+    val mod = backendImpl.compileFSM(info)
     // connect predicates as inputs
-    mod.io.predicates.elements.foreach { case (name, input) => input := pred(name) }
+    // Only for FSM backend
+    //mod.io.predicates.foreach { case (name, input) => input := pred(name) }
     // return fail signal
     mod.io.fail
   }
 }
 
 private object ToIRConverter {
-  def toIR[S <: Bits](prop: Property, initialState: S): (backend.PropertyInfo, Map[String, Bool]) = new ToIRConverter().toIR(prop, initialState)
+  def toIR[S <: Data](prop: Property[S], initialState: S): (backend.PropertyInfo, Map[String, (S) => Bool]) = new ToIRConverter().toIR(prop, initialState)
 }
 
 private class ToIRConverter private () {
-  private val pred = mutable.LinkedHashMap[Bool, String]()
+  private val predMap = mutable.LinkedHashMap[(S) => Bool, String]()
 
-  def toIR[S <: Bits](prop: Property, initialState: S): (backend.PropertyInfo, Map[String, Bool]) = {
-    pred.clear()
+  def toIR[S <: Data](prop: Property[S], initialState: S): (backend.PropertyInfo, Map[String, (S) => Bool]) = {
+    predMap.clear()
     val propertyIR = convert(prop, initialState)
-    val nameToPred = pred.toSeq.map { case (a, b) => (b, a) }
+    val nameToPred = predMap.toSeq.map { case (a, b) => (b, a) }
     (backend.PropertyInfo(propertyIR, nameToPred.map(_._1)), nameToPred.toMap)
   }
 
-  private def convert[S <: Bits](prop: Property, initialState: S): backend.Property = prop match {
-    case PropSeq(s) => backend.PropSeq(convert(s, initialState), initialState)
+  private def convert[S <: Data](prop: Property[S], initialState: S): backend.Property = prop match {
+    case PropSeq(s) => backend.PropSeq(convert(s, initialState))
   }
 
-  private def convert[S <: Bits](seq: Sequence, state: S): backend.Sequence = seq match {
+  private def convert[S <: Data](seq: Sequence[S], state: S): backend.Sequence = seq match {
     case SeqExpr(predicate)     => backend.SeqPred(convert(predicate))
     case SeqStateExpr(predicate, update) => backend.SeqStatePred(convert(predicate(state)), update)
     case SeqOr(s1, s2)          => backend.SeqOr(convert(s1, state), convert(s2, state))
@@ -52,7 +53,7 @@ private class ToIRConverter private () {
 
   private def convert(e: chisel3.Bool): backend.BooleanExpr = {
     // TODO: is there a way to introspect the chisel to find when an expression is a and/or/not expression?
-    val name = pred.getOrElseUpdate(e, f"p${pred.size}")
+    val name = predMap.getOrElseUpdate(e, f"p${pred.size}")
     backend.SymbolExpr(name)
   }
 }

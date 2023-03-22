@@ -11,9 +11,11 @@ import backend.Backend
 abstract class PropertyAlwaysAssertTester(backend: Backend) extends Module {
   val a = IO(Input(Bool()))
   val b = IO(Input(Bool()))
+  val initialState = false.B // temporary
+  val propSeq = StateBinding(Bool()) // if using external state tracking
   def prop: Property
   def desc: String = "???"
-  assertAlways(prop, desc, backend = backend)
+  assertAlways(prop, desc, backend = backend, initialState)
 }
 
 // https://www.scalatest.org/scaladoc/3.2.5/org/scalatest/freespec/AnyFreeSpec.html
@@ -66,8 +68,8 @@ trait SimpleAssertionTestsContainer { this: AnyFreeSpec with ChiselScalatestTest
     "simple local state sequence" in {
       test(new PropertyAlwaysAssertTester(backend) {
         override def prop = PropSeq (
-          SeqImpliesNext(SeqStateExpr((_) => a, (s: Bool) => a),
-            SeqStateExpr((s: Bool) => b === s, (s) => s)
+          SeqImpliesNext(SeqStateExpr((_: Any) => a, (s: Bool) => a),
+            SeqStateExpr((s: Bool) => b === s, (s: Bool) => s))
           )
           //PropSeq(SeqConcat(SeqExpr(a), SeqExpr(b)))
       }) { dut =>

@@ -8,34 +8,34 @@ import chisel3._
 import scala.language.implicitConversions
 
 package object sequences {
-  implicit def chiselBoolToSequence(b: chisel3.Bool): Sequence = SeqExpr(b)
-  implicit def chiselBoolToProperty(b: chisel3.Bool): Property = PropSeq(SeqExpr(b))
-  implicit def sequenceToProperty(s:   Sequence):     Property = PropSeq(s)
+  implicit def chiselBoolToSequence(b: chisel3.Bool): Sequence[Bool] = SeqExpr(b)
+  implicit def chiselBoolToProperty(b: chisel3.Bool): Property[Bool] = PropSeq(SeqExpr(b))
+  implicit def sequenceToProperty[S <: Data](s:   Sequence[S]):     Property[S] = PropSeq(s)
 }
 
-sealed trait Sequence {
-  def ###(delay: Int = 1)(other: Sequence): SeqConcat = {
+sealed trait Sequence[+S <: Data] {
+  def ###(delay: Int = 1)(other: Sequence[S]): SeqConcat[S] = {
     require(delay >= 0, "negative delay is not supported")
     require(delay == 1, "TODO")
     SeqConcat(this, other)
   }
-  def |->(p: Property): SeqImplies = SeqImplies(this, p)
-  def |=>(p: Property): SeqImpliesNext = SeqImpliesNext(this, p)
+  def |->(p: Property[S]): SeqImplies[S] = SeqImplies(this, p)
+  def |=>(p: Property[S]): SeqImpliesNext[S] = SeqImpliesNext(this, p)
 }
 
-case class SeqExpr(predicate: chisel3.Bool) extends Sequence
-case class SeqStateExpr[S <: Bits](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence
-case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqNot(s1: Sequence) extends Sequence
-case class SeqImplies(s1: Sequence, p1: Property) extends Sequence
-case class SeqImpliesNext(s1: Sequence, p1: Property) extends Sequence
-case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
+case class SeqExpr(predicate: chisel3.Bool) extends Sequence[Bool]
+case class SeqStateExpr[S <: Data](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence[S]
+case class SeqOr[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqConcat[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqIntersect[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqNot[S <: Data](s1: Sequence[S]) extends Sequence[S]
+case class SeqImplies[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+case class SeqImpliesNext[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+case class SeqFuse[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 
-sealed trait Property {}
+sealed trait Property[+S <: Data] {}
 
-case class PropSeq[S <: Bits](s: Sequence) extends Property
+case class PropSeq[S <: Data](s: Sequence[S]) extends Property[S]
 
 sealed trait LocalState {}
 case class StateBinding[T <: Data](state: T) extends LocalState

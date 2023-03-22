@@ -11,6 +11,7 @@ import scala.collection.immutable.{SeqMap, VectorMap}
 trait Backend {
   def name: String
   def compile(prop: PropertyInfo): PropertyAutomatonModule
+  def compileFSM(prop: PropertyInfo): PropertyFSMAutomatonModule
 }
 
 /** Contains a converted property and the name of all predicates used in it. */
@@ -26,8 +27,17 @@ class PropertyAutomatonIO(preds: Seq[String]) extends Bundle {
   val fail = Output(Bool())
 }
 
+class PropertyFSMAutomatonIO(preds: Seq[String]) extends Bundle {
+  val predicates: Map[String, (Any) => Bool] = VectorMap[String, (Any) => Bool](preds.map(p => (p, (_: Any) => Bool())): _*)
+  val fail = Output(Bool())
+}
+
 abstract class PropertyAutomatonModule extends Module {
   val io: PropertyAutomatonIO
+}
+
+abstract class PropertyFSMAutomatonModule extends Module {
+  val io: PropertyFSMAutomatonIO
 }
 
 sealed trait BooleanExpr {}
@@ -39,7 +49,7 @@ case class OrExpr(a: BooleanExpr, b: BooleanExpr) extends BooleanExpr
 sealed trait Sequence {}
 
 case class SeqPred(predicate: BooleanExpr) extends Sequence
-case class SeqStatePred[S <: Bits](predicate: BooleanExpr, update: (S) => S) extends Sequence
+case class SeqStatePred[S <: Data](predicate: BooleanExpr, update: (S) => S) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
@@ -50,12 +60,12 @@ case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
 
 sealed trait Property {}
 
-case class PropSeq[S <: Bits](s: Sequence, initialState: S) extends Property
+case class PropSeq[S <: Data](s: Sequence) extends Property
 
 object serialize {
   def apply(p: Property): String = {
     p match {
-      case PropSeq(s, initialState) => apply(s)
+      case PropSeq(s) => apply(s)
     }
   }
 
