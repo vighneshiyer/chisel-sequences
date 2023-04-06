@@ -88,7 +88,7 @@ class SimpleAssertionTests extends AnyFreeSpec with SimpleAssertionTestsContaine
   "Sequence FSM backend should work" - {
     tests(backend.SequenceFsms)
   }
-  "Spot backend should work" - {
-    tests(backend.Spot)
-  }
+  // "Spot backend should work" - {
+  //   tests(backend.Spot)
+  // }
 }

@@ -10,12 +10,13 @@ import scala.collection.immutable.{SeqMap, VectorMap}
 
 trait Backend {
   def name: String
-  def compile(prop: PropertyInfo): PropertyAutomatonModule
-  def compileFSM(prop: PropertyInfo): PropertyFSMAutomatonModule
+  //def compile[S <: Data](prop: PropertyInfo[S]): PropertyAutomatonModule
+  def compileFSM[S <: Data](prop: PropertyInfo[S], initialState: S): PropertyFSMAutomatonModule[S]
 }
 
 /** Contains a converted property and the name of all predicates used in it. */
-case class PropertyInfo(prop: Property, predicates: Seq[String])
+case class PropertyInfo[S <: Data](prop: Property[S], predicates: Seq[String])
+
 
 class PredicateBundle(predicates: Seq[String]) extends Record {
   override val elements:  SeqMap[String, Bool] = VectorMap[String, Bool](predicates.map(p => p -> Input(Bool())): _*)
@@ -27,8 +28,8 @@ class PropertyAutomatonIO(preds: Seq[String]) extends Bundle {
   val fail = Output(Bool())
 }
 
-class PropertyFSMAutomatonIO(preds: Seq[String]) extends Bundle {
-  val predicates: Map[String, (Any) => Bool] = VectorMap[String, (Any) => Bool](preds.map(p => (p, (_: Any) => Bool())): _*)
+class PropertyFSMAutomatonIO[S <: Data](preds: Seq[String]) extends Bundle {
+  val predicates: Map[String, (S) => Bool] = VectorMap[String, (S) => Bool](preds.map(p => (p, (_: S) => Bool())): _*)
   val fail = Output(Bool())
 }
 
@@ -36,8 +37,8 @@ abstract class PropertyAutomatonModule extends Module {
   val io: PropertyAutomatonIO
 }
 
-abstract class PropertyFSMAutomatonModule extends Module {
-  val io: PropertyFSMAutomatonIO
+abstract class PropertyFSMAutomatonModule[S <: Data] extends Module {
+  val io: PropertyFSMAutomatonIO[S]
 }
 
 sealed trait BooleanExpr {}
@@ -46,30 +47,32 @@ case class NotExpr(e: BooleanExpr) extends BooleanExpr
 case class AndExpr(a: BooleanExpr, b: BooleanExpr) extends BooleanExpr
 case class OrExpr(a: BooleanExpr, b: BooleanExpr) extends BooleanExpr
 
-sealed trait Sequence {}
+sealed trait Sequence[+S <: Data] {}
 
-case class SeqPred(predicate: BooleanExpr) extends Sequence
-case class SeqStatePred[S <: Data](predicate: BooleanExpr, update: (S) => S) extends Sequence
-case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
-case class SeqNot(s1: Sequence) extends Sequence
-case class SeqImplies(s1: Sequence, p1: Property) extends Sequence
-case class SeqImpliesNext(s1: Sequence, p1: Property) extends Sequence
-case class SeqFuse(s1: Sequence, s2: Sequence) extends Sequence
+case class SeqPred(predicate: BooleanExpr) extends Sequence[Bool]
+case class SeqStatePred[S <: Data](predicate: BooleanExpr, update: (S) => S) extends Sequence[S]
+case class SeqOr[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqConcat[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqIntersect[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqNot[S <: Data](s1: Sequence[S]) extends Sequence[S]
+// case class SeqImplies[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+// case class SeqImpliesNext[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+case class SeqImplies[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqImpliesNext[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqFuse[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 
-sealed trait Property {}
+sealed trait Property[+S <: Data] {}
 
-case class PropSeq[S <: Data](s: Sequence) extends Property
+case class PropSeq[S <: Data](s: Sequence[S]) extends Property[S]
 
 object serialize {
-  def apply(p: Property): String = {
+  def apply[S <: Data](p: Property[S]): String = {
     p match {
       case PropSeq(s) => apply(s)
     }
   }
 
-  def apply(s: Sequence): String = {
+  def apply[S <: Data](s: Sequence[S]): String = {
     s match {
       case SeqPred(predicate)     => apply(predicate)
       case SeqOr(s1, s2)          => apply(s1) + " or " + apply(s2)

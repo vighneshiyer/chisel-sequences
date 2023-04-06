@@ -19,18 +19,20 @@ sealed trait Sequence[+S <: Data] {
     require(delay == 1, "TODO")
     SeqConcat(this, other)
   }
-  def |->(p: Property[S]): SeqImplies[S] = SeqImplies(this, p)
-  def |=>(p: Property[S]): SeqImpliesNext[S] = SeqImpliesNext(this, p)
+  // def |->(p: Property[S]): SeqImplies[S] = SeqImplies(this, p)
+  // def |=>(p: Property[S]): SeqImpliesNext[S] = SeqImpliesNext(this, p)
 }
 
 case class SeqExpr(predicate: chisel3.Bool) extends Sequence[Bool]
-case class SeqStateExpr[S <: Data](predicate: (S) => chisel3.Bool, update: (S) => S) extends Sequence[S]
+case class SeqStateExpr[S <: Data](predicate: S => chisel3.Bool, update: S => S) extends Sequence[S]
 case class SeqOr[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 case class SeqConcat[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 case class SeqIntersect[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 case class SeqNot[S <: Data](s1: Sequence[S]) extends Sequence[S]
-case class SeqImplies[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
-case class SeqImpliesNext[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+// case class SeqImplies[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+// case class SeqImpliesNext[S <: Data](s1: Sequence[S], p1: Property[S]) extends Sequence[S]
+case class SeqImplies[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
+case class SeqImpliesNext[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 case class SeqFuse[S <: Data](s1: Sequence[S], s2: Sequence[S]) extends Sequence[S]
 
 sealed trait Property[+S <: Data] {}
